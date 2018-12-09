@@ -1,0 +1,255 @@
+#!/usr/bin/env php
+<?php
+function print_usage()
+{
+  $usage = "USAGE\n\t./103cipher message key flag\n";
+  $usage .= "\nDESCRIPTION\n\tmessage\ta message, made of ASCII characters\n\t";
+  $usage .= "key\tthe encryption key, made of ASCII characters\n\t";
+  $usage .= "flag\t0 for the message to be encrypted, 1 to be decrypted\n";
+  echo $usage;
+}
+
+function print_inverted_matrix_key($key, $matrix_len)
+{
+  for ($g = 0, $k = 0; $k != $matrix_len; $g++) {
+    if ($g == $matrix_len) {
+      $g = 0;
+      $k++;
+      echo "\n";
+    }
+    if ($k != $matrix_len && $key[$k][$g] != 0)
+      printf("%.3f\t", $key[$k][$g]);
+    else if ($k != $matrix_len && $key[$k][$g] == 0)
+      printf("%.1f\t", $key[$k][$g]);
+  }
+}
+
+function print_matrix_key($key, $matrix_len)
+{
+  for ($g = 0, $k = 0; $k != $matrix_len; $g++) {
+    if ($g == $matrix_len) {
+      $g = 0;
+      $k++;
+      echo "\n";
+    }
+    if ($k != $matrix_len)
+      printf("%d\t", $key[$k][$g]);
+  }
+}
+
+function print_matrix_msg($msg, $matrix_len)
+{
+  for ($x = 0, $y = 0; $msg[$y][$x] >= 0; $x++) {
+    printf("%d ", $msg[$y][$x]);
+    if ($x == ($matrix_len - 1)) {
+      $x = -1;
+      $y++;
+    }
+  }
+}
+
+function identity_matrix($matrix_len)
+{
+  $id = array(array());
+
+  for ($x = 0, $y = 0; $y != $matrix_len; $x++) {
+    if ($y == $x)
+      $id[$y][$x] = 1;
+    else
+      $id[$y][$x] = 0;
+    if ($x == ($matrix_len - 1)) {
+      $x = -1;
+      $y++;
+    }
+  }
+  return ($id);
+}
+
+function divide_line($key, $c, $matrix_len, $div)
+{
+  for ($k = 0; $k != $matrix_len; $k++) {
+    $key[$c][$k] /= $div;
+  }
+  return ($key);
+}
+
+function eliminate_line($line, $mul, $ref, $matrix_len)
+{
+  for ($k = 0; $k != $matrix_len; $k++)
+    $ref[$k] *= $mul;
+  for ($k = 0; $k != $matrix_len; $k++)
+    $line[$k] -= $ref[$k];
+  return ($line);
+}
+
+function eliminate_column($id, $key, $c, $matrix_len, $step)
+{
+  for ($k = 0; $k != $matrix_len; $k++) {
+    if ($k != $c) {
+      $id[$k] = eliminate_line($id[$k], $key[$k][$c], $id[$c], $matrix_len);
+      $key[$k] = eliminate_line($key[$k], $key[$k][$c], $key[$c], $matrix_len);
+    }
+  }
+  if ($step == 0)
+    return ($key);
+  return ($id);
+}
+
+function invert_matrix_key($key, $matrix_len)
+{
+  $c = 0;
+  $id = identity_matrix($matrix_len);
+
+  for ($c = 0; $c != $matrix_len; $c++) {
+    $id = divide_line($id, $c, $matrix_len, $key[$c][$c]);
+    $key = divide_line($key, $c, $matrix_len, $key[$c][$c]);
+    $id = eliminate_column($id, $key, $c, $matrix_len, 1);
+    $key = eliminate_column($id, $key, $c, $matrix_len, 0);
+  }
+  return ($id);
+}
+
+function matrix_key($clear_key, $matrix_len)
+{
+  $len = strlen($clear_key);
+  $key = array(array());
+
+  for ($g = 0, $k = 0, $i = 0; $i != $len; $g++, $i++) {
+    if ($g == $matrix_len) {
+      $g = 0;
+      $k++;
+    }
+    $key[$k][$g] = ord($clear_key[$i]);
+  }
+  for (;$g != $matrix_len; $g++)
+    $key[$k][$g] = 0;
+  return ($key);
+}
+
+function matrix_len($key)
+{
+  $len = strlen($key);
+
+  for ($x = 0; ($x * $x) < $len; $x++);
+  return ($x);
+}
+
+function transform_msg($clear_msg, $matrix_len)
+{
+  $msg = array(array());
+  $len = strlen($clear_msg);
+
+  for ($k = 0, $g = 0, $i = 0; $i != $len; $g++, $i++) {
+    if ($g == $matrix_len) {
+      $g = 0;
+      $k++;
+    }
+    if ($i != $len && $step == 0)
+      $msg[$k][$g] = ord($clear_msg[$i]);
+  }
+  for (;$g != $matrix_len; $g++)
+    $msg[$k][$g] = 0;
+  $msg[$k + 1][0] = -1;
+  return ($msg);
+}
+
+function matrix_product($key, $msg, $len)
+{
+  $res = array(array());
+
+  for ($x = 0, $y = 0; $msg[$y][$x] >= 0; $x++) {
+    $res[$y][$x] = $msg[$y][0] * $key[0][$x] + $msg[$y][1] * $key[1][$x] + $msg[$y][2] * $key[2][$x];
+    if ($x == ($len - 1)) {
+      $x = -1;
+      $y++;
+    }
+  }
+  $res[$y][0] = -1;
+  return ($res);
+}
+
+function encryption($argv)
+{
+  $len = matrix_len($argv[2]);
+  $key = matrix_key($argv[2], $len);
+  $msg = transform_msg($argv[1], $len);
+
+  echo "Key matrix:\n";
+  print_matrix_key($key, $len);
+  echo "\nEncrypted message:\n";
+  $res = matrix_product($key, $msg, $len);
+  print_matrix_msg($res, $len);
+  echo "\n";
+}
+
+function explode_matrix($c, $str, $len)
+{
+  $g = 0;
+  $k = 0;
+  $res = array(array());
+  $arr = explode(" ", $str);
+
+  foreach ($arr as $char) {
+    if ($k == $len) {
+      $k = 0;
+      $g++;
+    }
+    $res[$g][$k] = $char;
+    $k++;
+  }
+  $res[$g + 1][0] = -1;
+  return ($res);
+}
+
+function print_decrypted($res, $len)
+{
+  $c = "";
+
+  for ($x = 0, $y = 0; $res[$y][$x] > 0; $x++) {
+    $c .= $res[$y][$x] . " ";
+    if ($x == ($len - 1)) {
+      $x = -1;
+      $y++;
+    }
+  }
+  $arr = explode(" ", $c);
+  foreach ($arr as $char)
+    echo (chr($char));
+}
+
+function decryption($argv)
+{
+  $len = matrix_len($argv[2]);
+  $key = matrix_key($argv[2], $len);
+  $key = invert_matrix_key($key, $len);
+  $msg = explode_matrix(" ", $argv[1], $len);
+
+  echo "Key matrix:\n";
+  print_inverted_matrix_key($key, $len);
+  echo "\nDecrypted message:\n";
+  $res = matrix_product($key, $msg, $len);
+  print_decrypted($res, $len);
+  echo "\n";
+}
+
+function cipher($argv)
+{
+  if ($argv[3] == 0)
+    encryption($argv);
+  else if ($argv[3] == 1)
+    decryption($argv);
+  return (0);
+}
+
+function index($argc, $argv)
+{
+  if ($argc != 4) {
+    if ($argv[1] == "-h")
+      print_usage();
+    return 84;
+  }
+  cipher($argv);
+}
+
+index($argc, $argv);
+?>
